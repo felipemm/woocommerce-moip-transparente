@@ -49,7 +49,16 @@ function gateway_moip_transparente(){
 			$this->token           = $this->settings['token'];
 			$this->key             = $this->settings['key'];
 			$this->token_validator = $this->settings['token_validator'];
+			$this->store_nickname  = $this->settings['store_nickname'];
 			$this->debug           = $this->settings['debug'];
+			$this->enable_credito  = $this->settings['enable_credito'];
+			$this->enable_debito   = $this->settings['enable_debito'];
+			$this->enable_boleto   = $this->settings['enable_boleto'];
+			//$this->boleto_logo     = $this->settings['boleto_logo'];
+			//$this->boleto_days     = $this->settings['boleto_days'];
+			//$this->boleto_line1    = $this->settings['boleto_line1'];
+			//$this->boleto_line2    = $this->settings['boleto_line2'];
+			//$this->boleto_line3    = $this->settings['boleto_line3'];
 			$this->testmode        = $this->settings['testmode'];
 
 			// Logs
@@ -114,6 +123,39 @@ function gateway_moip_transparente(){
 					'type' => 'text',
 					'description' => __( 'Define uma chave de validação para o NASP (maior segurança).', 'woothemes' )
 				),
+				'store_nickname' => array(
+					'title' => __( 'Apelido da Loja', 'woothemes' ),
+					'type' => 'text',
+					'description' => __( 'Nome da loja que aparecerá no carrinho do MoIP.', 'woothemes' ),
+					'default' => 'Nome da Loja'
+				),
+				'enable_credito' => array(
+					'title' => __( 'Habilitar cartão de crédito?', 'woothemes' ),
+					'type' => 'checkbox',
+					'default' => 'yes'
+				),
+				'enable_debito' => array(
+					'title' => __( 'Habilita débito em conta?', 'woothemes' ),
+					'type' => 'checkbox',
+					'default' => 'yes'
+				),
+				'enable_boleto' => array(
+					'title' => __( 'Habilita boleto bancário?', 'woothemes' ),
+					'type' => 'checkbox',
+					'default' => 'yes'
+				),
+				/*'boleto_logo' => array(
+					'title' => __( 'Logo boleto', 'woothemes' ),
+					'type' => 'text',
+					'description' => __( 'URL do logo que irá aparecer no boleto.', 'woothemes' ),
+					'default' => ''
+				),
+				'boleto_days' => array(
+					'title' => __( 'Numero de dias vencimento', 'woothemes' ),
+					'type' => 'text',
+					'description' => __( 'Quantos dias após data de geração do boleto ele deve vencer.', 'woothemes' ),
+					'default' => '5'
+				),
 				'boleto_line1' => array(
 					'title' => __( 'Instrução Boleto Linha 1', 'woothemes' ),
 					'type' => 'text',
@@ -128,7 +170,7 @@ function gateway_moip_transparente(){
 					'title' => __( 'Instrução Boleto Linha 3', 'woothemes' ),
 					'type' => 'text',
 					'description' => __( 'Instruções a serem incluídas no boleto para o banco.', 'woothemes' )
-				),
+				),*/
 				'testmode' => array(
 					'title' => __( 'MoIP Sandbox', 'woothemes' ),
 					'type' => 'checkbox',
@@ -196,11 +238,13 @@ function gateway_moip_transparente(){
 			$moip->addPaymentWay('debit');
 			$moip->addPaymentWay('debitCard');
 			//set boleto bancario information
-			$moip->setBilletConf("2013-04-06", true, array("Primeira linha", "Segunda linha", "Terceira linha"), "http://seusite.com.br/logo.gif");
+			//$moip->setBilletConf(strtotime(date("Y-m-d", strtotime($date)) . " +".$this->boleto_days." day"), true, array($this->boleto_line1, $this->boleto_line2, $this->boleto_line3), $this->boleto_logo);
 
 			//set customer information
 			$endereco = explode(',',$order->billing_address_1);
+			$endereco[1] = str_replace('º','',str_replace('N','',strtoupper(str_replace('-','',$endereco[1]))));
 			$complemento = explode(',',$order->billing_address_2);
+			
 			$moip->setPayer(
 				array(
 					'name' => $order->billing_first_name . " " . $order->billing_last_name,
@@ -210,7 +254,7 @@ function gateway_moip_transparente(){
 						'address' => $endereco[0],
 						'number' => trim($endereco[1]),
 						'complement' => $complemento[0],
-						'neighborhood' => trim($complemento[1]),
+						'neighborhood' => utf8_decode (trim($complemento[1])),
 						'city' => $order->billing_city,
 						'state' => $order->billing_state,
 						'country' => $order->billing_country,
@@ -429,18 +473,20 @@ function gateway_moip_transparente(){
 							btnImprimeBoleto.style.visibility  = 'none';
 							btnConfirmaPedido.style.visibility = 'none';
 
+							divOpcao.visible = false;
+
 							divOpcao.style.display          = 'none';
 							divAguardando.style.display     = 'inline';
 							divResultado.style.display      = 'none';
 
 							changePaymentType(getCheckedRadioId('paymentType'));
-
+							document.getElementById('paymentButtons').visible=false;
 							divAguardando.innerHTML = '<img src=\"".esc_url( $woocommerce->plugin_url() )."/assets/images/ajax-loader.gif\" alt=\"Redirecting...\" style=\"float:left; margin-right: 10px;\"/>';
 							divAguardando.innerHTML += 'Processando o pagamento...';
-
-							setTimeout(function(){
+							divAguardando.visible = true;
+							//setTimeout(function(){
 								MoipWidget(settings);
-							},2000);
+							//},2000);
 						}
 
 						function cancelPayment(){
@@ -462,6 +508,7 @@ function gateway_moip_transparente(){
 							btnCancelarPedido.style.display = 'none';
 							btnConfirmaPedido.style.display = 'none';
 							btnImprimeBoleto.style.display  = 'none';
+							document.getElementById('paymentButtons').visible=true;
 
 							//if the request was successful, do the stuff to show it and confirm the order
 							if(data.StatusPagamento == 'Sucesso'){
@@ -621,9 +668,6 @@ function gateway_moip_transparente(){
 						}
 					</script>
 
-
-
-
 					<div id='MoipWidget'
 						data-token='".$resposta->token."'
 						callback-method-success='funcaoSucesso'
@@ -637,66 +681,89 @@ function gateway_moip_transparente(){
 						<div id='paymentWaiting' style='display: inline;'></div>
 
 						<div id='paymentOptions' style='display: inline;'>
-							<input type='radio' name='paymentType' id='paymentType' value='CartaoCredito'  onclick='changePaymentType(this.value)' /> Cartão de Crédito (Visa, Mastercard, Diners, Hipercard, American Express)<br>
-							<div id='paymentFormCredito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
-								<table>
-									<tr>
-										<td>Nome Portador</td>
-										<td><input type='text' id='nomePortador' value='".$order->billing_first_name . " " . $order->billing_last_name."' /> (como consta no cartão)</td>
-									</tr>
-									<tr>
-										<td>Número do Cartão</td>
-										<td>
-											<select id='tipoCartao' onchange='changeCreditCardType(this);'>
-												<option value='AmericanExpress'>American Express</option>
-												<option value='Diners'>Diners</option>
-												<option value='Mastercard'>Mastercard</option>
-												<option value='Hipercard'>Hipercard</option>
-												<option value='Visa' selected='selected'>Visa</option>
-											</select>
-											<input type='text' id='numeroCartao' value='' maxlength='16' size='25' onKeyPress='MascaraCartao(this);' />
-										</td>
-									</tr>
-									<tr>
-										<td>Código de Segurança</td>
-										<td><input type='text' id='codigoSeguranca' value='' maxlength='3'  size='5' /></td>
-									</tr>
-									<tr>
-										<td>Data Validade</td>
-										<td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this);' maxlength='7' onBlur= 'ValidaVencimento(this);'></td>
-									</tr>
-									<tr>
-										<td>Data de Nascimento </td>
-										<td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this);' maxlength='10' onBlur= 'ValidaData(this);'></td>
-									</tr>
-									<tr>
-										<td>Telefone</td>
-										<td><input type='text' id='Telefone' value='".$order->billing_phone."' /> (99)9999-9999</td>
-									</tr>
-									<tr>
-										<td>CPF</td>
-										<td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this);' maxlength='14'></td>
-									</tr>
+				";
+				
 
-								</table>
-							</div>
-							<input type='radio' name='paymentType' id='paymentType' value='DebitoBancario' onclick='changePaymentType(this.value)' /> Débito automático em conta (BB, Bradesco, Banrisul, Itaú)<br>
-							<div id='paymentFormDebito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
-								<table>
-									<tr>
-										<td>Selecione o banco: </td>
-										<td>
-											<select id='tipoBancoDebito'>
-												<option value='BancoDoBrasil'>Banco do Brasil</option>
-												<option value='Bradesco'>Bradesco</option>
-												<option value='Banrisul'>Banrisul</option>
-												<option value='Itau' selected='selected'>Itaú</option>
-											</select>
-										</td>
-									</tr>
-								</table>
-							</div>
-							<input type='radio' name='paymentType' id='paymentType' value='BoletoBancario' onclick='changePaymentType(this.value)' /> Boleto Bancário <br><br>
+				if($this->enable_credito == 'yes'){
+					$payment_form .= "
+								<input type='radio' name='paymentType' id='paymentType' value='CartaoCredito'  onclick='changePaymentType(this.value)' /> Cartão de Crédito (Visa, Mastercard, Diners, Hipercard, American Express)<br>
+								<div id='paymentFormCredito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+									<table>
+										<tr>
+											<td>Nome Portador</td>
+											<td><input type='text' id='nomePortador' value='".$order->billing_first_name . " " . $order->billing_last_name."' /> (como consta no cartão)</td>
+										</tr>
+										<tr>
+											<td>Número do Cartão</td>
+											<td>
+												<select id='tipoCartao' onchange='changeCreditCardType(this);'>
+													<option value='AmericanExpress'>American Express</option>
+													<option value='Diners'>Diners</option>
+													<option value='Mastercard'>Mastercard</option>
+													<option value='Hipercard'>Hipercard</option>
+													<option value='Visa' selected='selected'>Visa</option>
+												</select>
+												<input type='text' id='numeroCartao' value='' maxlength='16' size='25' onKeyPress='MascaraCartao(this);' />
+											</td>
+										</tr>
+										<tr>
+											<td>Código de Segurança</td>
+											<td><input type='text' id='codigoSeguranca' value='' maxlength='3'  size='5' /></td>
+										</tr>
+										<tr>
+											<td>Data Validade</td>
+											<td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this);' maxlength='7' onBlur= 'ValidaVencimento(this);'></td>
+										</tr>
+										<tr>
+											<td>Data de Nascimento </td>
+											<td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this);' maxlength='10' onBlur= 'ValidaData(this);'></td>
+										</tr>
+										<tr>
+											<td>Telefone</td>
+											<td><input type='text' id='Telefone' value='".$order->billing_phone."' /> (99)9999-9999</td>
+										</tr>
+										<tr>
+											<td>CPF</td>
+											<td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this);' maxlength='14'></td>
+										</tr>
+
+									</table>
+								</div>
+					";
+				} else {
+					$payment_form .= "<div id='paymentFormCredito'></div>";
+				}
+				
+				if($this->enable_debito == 'yes'){
+					$payment_form .= "
+								<input type='radio' name='paymentType' id='paymentType' value='DebitoBancario' onclick='changePaymentType(this.value)' /> Débito automático em conta (BB, Bradesco, Banrisul, Itaú)<br>
+								<div id='paymentFormDebito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+									<table>
+										<tr>
+											<td>Selecione o banco: </td>
+											<td>
+												<select id='tipoBancoDebito'>
+													<option value='BancoDoBrasil'>Banco do Brasil</option>
+													<option value='Bradesco'>Bradesco</option>
+													<option value='Banrisul'>Banrisul</option>
+													<option value='Itau' selected='selected'>Itaú</option>
+												</select>
+											</td>
+										</tr>
+									</table>
+								</div>
+					";
+				} else {
+					$payment_form .= "<div id='paymentFormDebito'></div>";
+				}
+				
+				if($this->enable_boleto == 'yes'){
+					$payment_form .= "
+								<input type='radio' name='paymentType' id='paymentType' value='BoletoBancario' onclick='changePaymentType(this.value)' /> Boleto Bancário <br><br>
+					";
+				}
+				
+				$payment_form .= "
 						</div>
 
 						<div id='paymentButtons'>
