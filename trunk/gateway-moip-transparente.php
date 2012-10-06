@@ -281,7 +281,7 @@ function gateway_moip_transparente(){
 
         //add the javascript and html code necessary to do the checkout on the client side
         $payment_form = "
-          <script type='text/javascript'>
+          <script type='text/javascript'><!--
 
             //valida numero inteiro com mascara
             function mascaraInteiro(el, event){
@@ -639,7 +639,7 @@ function gateway_moip_transparente(){
               //alert(JSON.stringify(settings));
           
             }
-          </script>
+          --></script>
 
           <div id='MoipWidget'
             data-token='".$resposta->token."'
@@ -651,17 +651,16 @@ function gateway_moip_transparente(){
 
             <div id='paymentResult'></div>
 
-            <div id='paymentWaiting'>
-            </div>
+            <div id='paymentWaiting'></div>
 
             <div id='paymentOptions'>
         ";
         
-
+		
         if($this->enable_credito == 'yes'){
           $payment_form .= "
                 <input type='radio' name='paymentType' id='paymentType' value='CartaoCredito'  onclick='changePaymentType(this.value)' /> Cartão de Crédito (Visa, Mastercard, Diners, Hipercard, American Express)<br>
-                <div id='paymentFormCredito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+                <div id='paymentFormCredito' style='display: none; margin: 5 5 5 5;'>
                   <table>
                     <tr>
                       <td>Nome Portador</td>
@@ -686,11 +685,11 @@ function gateway_moip_transparente(){
                     </tr>
                     <tr>
                       <td>Data Validade</td>
-                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);'></td>
+                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);' /></td>
                     </tr>
                     <tr>
                       <td>Data de Nascimento </td>
-                      <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);'></td>
+                      <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);' /></td>
                     </tr>
                     <tr>
                       <td>Telefone</td>
@@ -698,7 +697,7 @@ function gateway_moip_transparente(){
                     </tr>
                     <tr>
                       <td>CPF</td>
-                      <td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14'></td>
+                      <td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14' /></td>
                     </tr>
 
                   </table>
@@ -711,7 +710,7 @@ function gateway_moip_transparente(){
         if($this->enable_debito == 'yes'){
           $payment_form .= "
                 <input type='radio' name='paymentType' id='paymentType' value='DebitoBancario' onclick='changePaymentType(this.value)' /> Débito automático em conta (BB, Bradesco, Banrisul, Itaú)<br>
-                <div id='paymentFormDebito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+                <div id='paymentFormDebito' style='display: none; margin: 5 5 5 5;'>
                   <table>
                     <tr>
                       <td>Selecione o banco: </td>
@@ -748,13 +747,14 @@ function gateway_moip_transparente(){
             </div>
 
           </div>
-          <script type='text/javascript' src='".($this->testmode == 'yes' ? 'https://desenvolvedor.moip.com.br/sandbox' : 'https://www.moip.com.br')."/transparente/MoipWidget-v2.js' charset='utf-8'/>
+		  <div style='clear:both'></div>
+          <script type='text/javascript' src='".($this->testmode == 'yes' ? 'https://desenvolvedor.moip.com.br/sandbox' : 'https://www.moip.com.br')."/transparente/MoipWidget-v2.js' charset='utf-8'></script>
         ";
       } else {
         //houve um erro na transação, lançar no log
         if ($this->debug=='yes') $this->log->add($this->id, 'Houve um erro ao processar o XML: '. $resposta->error);
         $payment_form = utf8_encode($resposta->error);
-        $payment_form .= "<button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
+        $payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
         
       if ($this->debug=='yes') $this->log->add($this->id, "Pedido gerado com sucesso. Abaixo código HTML do formulário:");
