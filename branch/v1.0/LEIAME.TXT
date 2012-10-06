@@ -1,0 +1,121 @@
+Para que o plugin funcione corretamente, é necessário que o usuário ao se cadastrar, as informações de endereço sejam informadas de maneira correta para que o plugin passe as informações para o MoIP, caso contrário o pagamento não será feito de modo "transparente".
+
+Os campos que precisam de validação extra são os campos "Endereço linha 1" e "endereço linha 2". Apesar da linha 2 ser opcional, para o plugin do MoIP transparente é essencial que seja preenchido.
+
+No endereço linha 1, deve ser informado o logradouro + a numero da residência no seguinte formato
+
+<logradouro>, <numero>
+
+Ex.: Av. Paulista, 2000
+
+No Endereço linha 2, deverá ser informado: somente o bairro, ou o complemento + bairro. O bairro deverá ser informado!
+
+<complemento>, <bairro>
+<bairro>
+
+Ex.: Apto 63, Centro
+     Jardim Miranda
+	 
+	 
+O Woocommerce por padrão não fornece nenhuma validação nesses campos, cabendo a nós desenvolvê-los. A seguir estão 2 códigos javascripts que deverão ser incluídos nas páginas do wordpress onde pode-se criar/alterar os endereços. Você deve colocar todo o conteúdo entre os limitadores abaixo no conteúdo da página, sobrescrevendo o que estiver lá.
+
+
+Página de checkout (finalizar compra)
+
+========== COPIAR A PARTIR DAQUI ============
+[woocommerce_checkout]
+
+<script type="text/javascript">
+<!--
+function validateAddress1(field){
+	if(field.value != ''){
+		if(field.value.indexOf(',') > 0){
+			field.style.color = null;
+			return true;
+		} else {
+			field.style.color = 'red';
+			alert('Endereço não está no formato correto (<logradouro>, <numero>). Ex.: Av. Paulista, 1200');
+			field.focus();
+			field.select();	
+			return false;			
+		}
+	} else {
+		alert('O campo é obrigatório!');
+		field.focus();
+		return false;
+	}
+	return false;
+}
+function validateAddress2(field){
+	if(field.value != ''){
+		field.style.color = null;
+		return true;
+	} else {
+		alert('O bairro é obrigatório!');
+		field.focus();
+		return false;
+	}
+}
+document.getElementById('billing_address_1').onblur = function(){validateAddress1(document.getElementById('billing_address_1'))};
+document.getElementById('billing_address_2').onblur = function(){validateAddress2(document.getElementById('billing_address_2'))};
+document.getElementById('place_order').onmouseover = function(){
+    if(validateAddress1(document.getElementById('billing_address_1'))){
+		if(validateAddress1(document.getElementById('billing_address_2'))){
+			return true;
+		}		
+	}
+	return false;
+};
+//--></script>
+========== FINALIZAR CÓPIA AQUI ============
+
+
+
+Página de alteração de endereço
+
+========== COPIAR A PARTIR DAQUI ============
+[woocommerce_edit_address]
+
+<script type="text/javascript">
+<!--
+function validateAddress1(field){
+	if(field.value != ''){
+		if(field.value.indexOf(',') > 0){
+			field.style.color = null;
+			return true;
+		} else {
+			field.style.color = 'red';
+			alert('Endereço não está no formato correto (<logradouro>, <numero>). Ex.: Av. Paulista, 1200');
+			field.focus();
+			field.select();	
+			return false;			
+		}
+	} else {
+		alert('O campo é obrigatório!');
+		field.focus();
+		return false;
+	}
+	return false;
+}
+function validateAddress2(field){
+	if(field.value != ''){
+		field.style.color = null;
+		return true;
+	} else {
+		alert('O bairro é obrigatório!');
+		field.focus();
+		return false;
+	}
+}
+document.getElementById('billing_address_1').onblur = function(){validateAddress1(document.getElementById('billing_address_1'))};
+document.getElementById('billing_address_2').onblur = function(){validateAddress2(document.getElementById('billing_address_2'))};
+document.getElementsByName('save_address')[0].onmouseover = function(){
+    if(validateAddress1(document.getElementById('billing_address_1'))){
+		if(validateAddress1(document.getElementById('billing_address_2'))){
+			return true;
+		}		
+	}
+	return false;
+};
+//--></script>
+========== FINALIZAR CÓPIA AQUI ============
