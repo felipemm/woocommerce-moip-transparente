@@ -232,11 +232,11 @@ function gateway_moip_transparente(){
       }
 
       //set payment methods that will be available for the customer
-      $moip->addPaymentWay('creditCard');
-      $moip->addPaymentWay('billet');
-      $moip->addPaymentWay('financing');
-      $moip->addPaymentWay('debit');
-      $moip->addPaymentWay('debitCard');
+      //$moip->addPaymentWay('creditCard');
+      //$moip->addPaymentWay('billet');
+      //$moip->addPaymentWay('financing');
+      //$moip->addPaymentWay('debit');
+      //$moip->addPaymentWay('debitCard');
       //set boleto bancario information
       //$moip->setBilletConf(strtotime(date("Y-m-d", strtotime($date)) . " +".$this->boleto_days." day"), true, array($this->boleto_line1, $this->boleto_line2, $this->boleto_line3), $this->boleto_logo);
 
@@ -244,6 +244,7 @@ function gateway_moip_transparente(){
       $endereco = explode(',',$order->billing_address_1);
       $endereco[1] = str_replace('º','',str_replace('N','',strtoupper(str_replace('-','',$endereco[1]))));
       $complemento = explode(',',$order->billing_address_2);
+	  if(!isset($complemento[1])) $complemento[1] = $order->billing_address_2;
       
       $moip->setPayer(
         array(
@@ -257,12 +258,15 @@ function gateway_moip_transparente(){
             'neighborhood' => utf8_decode (trim($complemento[1])),
             'city' => $order->billing_city,
             'state' => $order->billing_state,
-            'country' => $order->billing_country,
+            'country' => 'BRA', //$order->billing_country,
             'zipCode' => $order->billing_postcode,
             'phone' => $order->billing_phone
           )
         )
       );
+	  
+	  //adiciona opções de parcelamento para o cliente com a taxa de juros do moip
+	  //$moip->addParcel('2','12',null,true);
 
       //valida as informações para ser enviada para o xml
       $moip->validate('Identification');
@@ -272,13 +276,28 @@ function gateway_moip_transparente(){
       $moip->send();
       //armazena as informações de resposta na variável;
       $resposta = $moip->getAnswer();
-
+      //if ($this->debug=='yes') $this->log->add($this->id, 'RESPOSTA DO MOIP: '. $resposta->);
 
       //valida a resposta
       if($resposta->response){
         if ($this->debug=='yes') $this->log->add($this->id, 'XML enviado com sucesso. TOKEN: '. $resposta->token);
         
+		$parcelas = $moip->queryParcel($this->email, '12', '1.99', (number_format($order->get_total(),2,".","")));
+		//if ($this->debug=='yes') $this->log->add($this->id, 'Parcelas: '. $parcelas['response']);
 
+		if(count($parcelas['installment']) > 0){
+			$divParcela = "<select id='numParcelas' onchange='changePaymentType(\"CartaoCredito\");'>";
+			foreach($parcelas['installment'] as $key => $value){
+				if ($key == '1') {
+					$divParcela .= "<option selected='selected' value='".$key."'>".$key ." x R$ ".number_format($value['value'],2,",","")." (R$ ".number_format($value['total'],2,",","").")</option>";
+				} else {
+					$divParcela .= "<option value='".$key."'>".$key ." x R$ ".number_format($value['value'],2,",","")." (R$ ".number_format($value['total'],2,",","").")</option>";
+				}
+				
+			}
+			$divParcela .= "</select>";
+		}
+		
         //add the javascript and html code necessary to do the checkout on the client side
         $payment_form = "
           <script type='text/javascript'><!--
@@ -463,6 +482,29 @@ function gateway_moip_transparente(){
               cartao.select();
             }
 
+			calcular = function() {
+				var settings = {
+					cofre: '',
+					instituicao: 'Visa',
+					callback: 'retornoCalculoParcelamento'
+				};
+				MoipUtil.calcularParcela(settings);
+			};  
+			
+			retornoCalculoParcelamento = function(data) {
+				//alert(JSON.stringify(data));
+				/*
+				var divParcelas =  document.getElementById('cartaoParcelas');
+				
+
+				divParcelas.innerHTML = '<select id=\"selectParcela\">';
+				for(int i = 0; i < data.parcelas.length; i++){
+					divParcelas.innerHTML += '<option value=\"'+data.parcelas[i].quantidade+'\" > ' + data.parcelas[i].quantidade + ' x R$ ' + data.parcelas[i].valor + ' (R$ '+data.parcelas[i].valor_total+') </option>';
+				}
+				divParcelas.innerHTML += '</select>';
+				*/
+			};  
+			
             //function to execute the payment selected by the customer
             function executePayment() {
               document.getElementById('paymentWaiting').innerHTML = '<img src=\"".esc_url( $woocommerce->plugin_url() )."/assets/images/ajax-loader.gif\" alt=\"Redirecting...\" style=\"float:left; margin-right: 10px;\"/>';
@@ -588,6 +630,7 @@ function gateway_moip_transparente(){
 
               switch(id){
                 case 'CartaoCredito':
+				  calcular();
                   formCartaoCredito.style.display = 'inline';
                   formCartaoDebito.style.display  = 'none';
 
@@ -598,12 +641,13 @@ function gateway_moip_transparente(){
                   var nomePortador    = document.getElementById('nomePortador').value;
                   var dataNascimento  = document.getElementById('dataNascimento').value;
                   var telefone        = document.getElementById('Telefone').value;
-                  var cpf             = document.getElementById('cpf').value
+                  var cpf             = document.getElementById('cpf').value;
+                  var parcelas        = document.getElementById('numParcelas').value;
 
                   settings = {
                     'Forma': 'CartaoCredito',
                     'Instituicao': instituicao,
-                    'Parcelas': '1',
+                    'Parcelas': parcelas,
                     'Recebimento': 'AVista',
                     'CartaoCredito': {
                       'Numero': numeroCartao,
@@ -688,6 +732,16 @@ function gateway_moip_transparente(){
                       <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);' /></td>
                     </tr>
                     <tr>
+						<td>Opções de Parcelamento</td>
+						<td>$divParcela</td>
+                    </tr>
+                    <tr>
+                      <td>Opções de Pagamento</td>
+                      <td>
+						<div id='cartaoParcelas'></div>
+					  </td>
+                    </tr>
+                    <tr>
                       <td>Data de Nascimento </td>
                       <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);' /></td>
                     </tr>
@@ -756,9 +810,11 @@ function gateway_moip_transparente(){
         $payment_form = utf8_encode($resposta->error);
         $payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
+	  
+	  //$payment_form .= print_r($parcelas, true);
         
-      if ($this->debug=='yes') $this->log->add($this->id, "Pedido gerado com sucesso. Abaixo código HTML do formulário:");
-      if ($this->debug=='yes') $this->log->add($this->id, $payment_form);
+      //if ($this->debug=='yes') $this->log->add($this->id, "Pedido gerado com sucesso. Abaixo código HTML do formulário:");
+      //if ($this->debug=='yes') $this->log->add($this->id, $payment_form);
 
       return $payment_form;
     } // End of generate_moip_form()
