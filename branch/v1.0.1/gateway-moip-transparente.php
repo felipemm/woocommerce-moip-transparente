@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce Moip Checkout Transparente
 Plugin URI: http://felipematos.com/loja
 Description: Adiciona o gateway de pagamento do Moip no WooCommerce (com checkout transparente)
-Version: 1.0
+Version: 1.0.1
 Author: Felipe Matos <chucky_ath@yahoo.com.br>
 Author URI: http://felipematos.com
 Requires at least: 3.4
@@ -240,21 +240,18 @@ function gateway_moip_transparente(){
       //set boleto bancario information
       //$moip->setBilletConf(strtotime(date("Y-m-d", strtotime($date)) . " +".$this->boleto_days." day"), true, array($this->boleto_line1, $this->boleto_line2, $this->boleto_line3), $this->boleto_logo);
 
-      //set customer information
-      $endereco = explode(',',$order->billing_address_1);
-      $endereco[1] = str_replace('º','',str_replace('N','',strtoupper(str_replace('-','',$endereco[1]))));
-      $complemento = explode(',',$order->billing_address_2);
-      
+	  //$cm_fields = get_post_meta($order->id, '_billing_number', true);
+	  
       $moip->setPayer(
         array(
           'name' => $order->billing_first_name . " " . $order->billing_last_name,
           'email' => $order->billing_email,
           'payerId' => $order->billing_email,
           'billingAddress' => array(
-            'address' => $endereco[0],
-            'number' => trim($endereco[1]),
-            'complement' => $complemento[0],
-            'neighborhood' => utf8_decode (trim($complemento[1])),
+            'address' => $order->billing_address_1,
+            'number' => get_post_meta($order->id, '_billing_number', true),
+            'complement' => $order->billing_address_2,
+            'neighborhood' => get_post_meta($order->id, '_billing_district', true),
             'city' => $order->billing_city,
             'state' => $order->billing_state,
             'country' => $order->billing_country,
@@ -263,7 +260,7 @@ function gateway_moip_transparente(){
           )
         )
       );
-
+		//if ($this->debug=='yes') $this->log->add($this->id, 'numero: '. $cm_fields);
       //valida as informações para ser enviada para o xml
       $moip->validate('Identification');
       //armazena o xml no log para validação
@@ -754,7 +751,8 @@ function gateway_moip_transparente(){
         //houve um erro na transação, lançar no log
         if ($this->debug=='yes') $this->log->add($this->id, 'Houve um erro ao processar o XML: '. $resposta->error);
         $payment_form = utf8_encode($resposta->error);
-        $payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
+        $payment_form .= $order->billing_number;
+		$payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
         
       if ($this->debug=='yes') $this->log->add($this->id, "Pedido gerado com sucesso. Abaixo código HTML do formulário:");
