@@ -225,10 +225,10 @@ function gateway_moip_transparente(){
       //set order information
       $moip->setUniqueID($order->id);
       $moip->setValue(number_format($order->get_total(),2,".",""));
-      $moip->setReason('Compra feita: '. $this->store_nickname);
+      $moip->setReason(utf8_decode('Compra feita: '. $this->store_nickname));
       //put product description in the payment
       foreach ($order->get_items() as $item){
-        $moip->addMessage($item['name'] . ' - ' . $item['qty'] . ' Un.');
+        $moip->addMessage(utf8_decode($item['name'] . ' - ' . $item['qty'] . ' Un.'));
       }
 
       //set payment methods that will be available for the customer
@@ -244,16 +244,16 @@ function gateway_moip_transparente(){
 	  
       $moip->setPayer(
         array(
-          'name' => $order->billing_first_name . " " . $order->billing_last_name,
+          'name' => utf8_decode($order->billing_first_name . " " . $order->billing_last_name),
           'email' => $order->billing_email,
           'payerId' => $order->billing_email,
           'billingAddress' => array(
-            'address' => $order->billing_address_1,
-            'number' => get_post_meta($order->id, '_billing_number', true),
-            'complement' => $order->billing_address_2,
-            'neighborhood' => get_post_meta($order->id, '_billing_district', true),
-            'city' => $order->billing_city,
-            'state' => $order->billing_state,
+            'address' => utf8_decode($order->billing_address_1),
+            'number' => utf8_decode(get_post_meta($order->id, '_billing_number', true)),
+            'complement' => utf8_decode($order->billing_address_2),
+            'neighborhood' => utf8_decode(get_post_meta($order->id, '_billing_district', true)),
+            'city' => utf8_decode($order->billing_city),
+            'state' => utf8_decode($order->billing_state),
             'country' => $order->billing_country,
             'zipCode' => $order->billing_postcode,
             'phone' => $order->billing_phone
@@ -280,6 +280,20 @@ function gateway_moip_transparente(){
         $payment_form = "
           <script type='text/javascript'><!--
 
+			function mascara(o,f){  
+				v_obj=o  
+				v_fun=f  
+				setTimeout('execmascara()',1)  
+			}  
+			function execmascara(){  
+				v_obj.value=v_fun(v_obj.value)  
+			}  
+			function mtel(v){  
+				v=v.replace(/\D/g,'');             //Remove tudo o que não é dígito  
+				v=v.replace(/^(\d{2})(\d)/g,'($1)$2'); //Coloca parênteses em volta dos dois primeiros dígitos  
+				v=v.replace(/(\d)(\d{4})$/,'$1-$2');    //Coloca hífen entre o quarto e o quinto dígitos  
+				return v;  
+			}  		  
             //valida numero inteiro com mascara
             function mascaraInteiro(el, event){
               if (event.keyCode < 48 || event.keyCode > 57){
@@ -353,7 +367,14 @@ function gateway_moip_transparente(){
               }
               return formataCampo(cpf, '000.000.000-00', event);
             }
-
+			function MascaraTelefone(tel,event){
+              if(mascaraInteiro(tel,event)==false){
+                event.returnValue = false;
+              }
+			  if(tel.trim().length > 13) 
+				return formataCampo(tel, '(00)00000-0000', event); //9 digitos
+              return formataCampo(tel, '(00)0000-0000', event);
+            }
             //valida o CPF digitado
             function ValidarCPF(Objcpf){
               var cpf = Objcpf.value;
@@ -373,7 +394,7 @@ function gateway_moip_transparente(){
 
               var digitoGerado=(soma1*10)+soma2;
               if(digitoGerado!=digitoDigitado){
-                alert('CPF Invalido!');
+                //alert('CPF Invalido!');
                 Objcpf.select();
               }
             }
@@ -382,7 +403,7 @@ function gateway_moip_transparente(){
             function ValidaVencimento(data){
               exp = /\d{2}\/\d{4}/
               if(!exp.test(data.value)){
-                alert('Data Invalida!');
+                //alert('Data Invalida!');
                 data.focus();
                 data.select();
               }
@@ -400,7 +421,7 @@ function gateway_moip_transparente(){
             function ValidaData(data){
               exp = /\d{2}\/\d{2}\/\d{4}/
               if(!exp.test(data.value)){
-                alert('Data Invalida!');
+                //alert('Data Invalida!');
                 data.focus();
                 data.select();
               }
@@ -477,7 +498,7 @@ function gateway_moip_transparente(){
             }
 
             function cancelPayment(){
-              window.location = \"".esc_url( $order->get_cancel_order_url() )."\";
+              window.location = \"".$order->get_cancel_order_url()."\";
             }
 
             //calback function when the request was made sucessfully
@@ -513,11 +534,17 @@ function gateway_moip_transparente(){
 
                 //alert(tipoPagamento);
                 if(tipoPagamento == 'CartaoCredito'){
-                  document.getElementById('paymentResult').innerHTML += 'A sua transação está '+data.Status+' e o código Moip é ' + data.CodigoMoIP;
+				  var status = '';
+				  switch(data.Status){
+					case 'EmAnalise'     : status = 'Em Análise'; break;
+					case 'BoletoImpresso': status = 'Boleto Impresso'; break;
+					default              : status = data.Status; break;
+				  }
+                  document.getElementById('paymentResult').innerHTML += ' A sua transação está \''+status+'\' e o código Moip é ' + data.CodigoMoIP;
 
-                  setTimeout(function(){
-                    window.location = '".$this->get_return_url($order)."';
-                  },7000);
+                  //setTimeout(function(){
+                  //  window.location = '".$this->get_return_url($order)."';
+                  //},7000);
 
                 } else {
                   var win = window.open(data.url);
@@ -572,7 +599,7 @@ function gateway_moip_transparente(){
 
                document.getElementById('paymentButtons').style.display = 'block';
               divResultado.innerHTML = '<img src=\"".esc_url( $woocommerce->plugin_url() )."/assets/images/error.gif\" alt=\"Completo!\" style=\"float:left; margin-right: 10px;\"/> Houve um erro ao processar o seu pagamento!';
-              divResultado.innerHTML += '<br><br>O MoIP retornou a seguinte mensagem: ".utf8_encode(' + JSON.stringify(data)')."' ;
+              divResultado.innerHTML += '<br><br>O MoIP retornou a seguinte mensagem: ' + JSON.stringify(data);
             };
 
 
@@ -682,19 +709,19 @@ function gateway_moip_transparente(){
                     </tr>
                     <tr>
                       <td>Data Validade</td>
-                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);' /></td>
+                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);' /> MM/AAAA</td>
                     </tr>
                     <tr>
                       <td>Data de Nascimento </td>
-                      <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);' /></td>
+                      <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);' /> DD/MM/AAAA</td>
                     </tr>
                     <tr>
                       <td>Telefone</td>
-                      <td><input type='text' id='Telefone' value='".$order->billing_phone."' /> (99)9999-9999</td>
+                      <td><input type='text' id='Telefone' value='".$order->billing_phone."' maxlength='14'  onKeyDown='mascara(this, mtel);'/> (99)9999-9999</td>
                     </tr>
                     <tr>
                       <td>CPF</td>
-                      <td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14' /></td>
+                      <td><input type='text' id='cpf' value='".get_post_meta($order->id, '_billing_cpf', true)."' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14' /></td>
                     </tr>
 
                   </table>
