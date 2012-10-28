@@ -1,1 +1,3 @@
-Para que o plugin funcione corretamente, é necessário ter instalado o plugin WooCommerce Fields.
+1) instale o woocommerce-fields.zip primeiro
+2) instale o woocommerce-moip-transparente.zip
+3) copie o conteúdo do arquivo woocommerce-checkout.js para página configurada no woocommerce como "finalizar compra"
