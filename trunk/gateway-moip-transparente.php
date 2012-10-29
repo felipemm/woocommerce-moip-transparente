@@ -237,8 +237,10 @@ function gateway_moip_transparente(){
       $moip->setEnvironment($this->testmode == 'yes' ? 'test' : 'prod');
       //set credentials and receiver information
       $moip->setCredential(array('key' => $this->key,'token' => $this->token));
-      $moip->setReceiver($this->email);
-      $moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
+      //$moip->setReceiver($this->email);
+      $moip->setReceiver($this->user);
+      //$moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
+      $moip->setNotificationURL(htmlspecialchars($this->get_return_url($order)));
 
       //set order information
       $moip->setUniqueID($order->id ."-".microtime());
@@ -827,6 +829,7 @@ function gateway_moip_transparente(){
         if ($this->debug=='yes') $this->log->add($this->id, 'Houve um erro ao processar o XML: '. $resposta->error);
         $payment_form = utf8_encode($resposta->error);
         $payment_form .= $order->billing_number;
+        $payment_form .= 'felipe';
 		$payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
         
