@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce Moip Checkout Transparente
 Plugin URI: http://felipematos.com/loja
 Description: Adiciona o gateway de pagamento do Moip no WooCommerce (com checkout transparente)
-Version: 1.0.1
+Version: 1.1
 Author: Felipe Matos <chucky_ath@yahoo.com.br>
 Author URI: http://felipematos.com
 Requires at least: 3.4
@@ -869,6 +869,7 @@ function gateway_moip_transparente(){
       $moip_payment_token = get_post_meta($order->id, 'moip_payment_token', true);
       echo $this->generate_moip_form( $order ) . $moip_payment_token;
       update_post_meta($order->id, 'moip_payment_token', $moip_payment_token);
+	  $order->update_status('processing','Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
     } // End of receipt_page()
 
 
@@ -967,7 +968,8 @@ function gateway_moip_transparente(){
 
           case 2: //iniciado
 
-            $order->add_order_note( __('Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).', 'woothemes') );
+            $order->update_status('processing','Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
+            //$order->add_order_note( __('Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).', 'woothemes') );
             if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
             break;
 
