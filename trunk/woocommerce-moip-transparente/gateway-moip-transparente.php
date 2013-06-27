@@ -59,6 +59,7 @@ function f2m_gateway_moip_transparente(){
       		$this->has_fields         = false;
             $this->method_title       = __('Moip Transparente', 'woothemes');
             $this->method_description = __('Método de pagamento pelo MoIP (via checkout transparente).', 'woothemes');
+			$this->notify_url         = str_replace( 'https:', 'http:', add_query_arg( 'wc-api', get_class($this), home_url( '/' ) ) );
 
 
 			// Load the form fields.
@@ -91,6 +92,7 @@ function f2m_gateway_moip_transparente(){
       		add_action('woocommerce_receipt_'.$this->id, array(&$this, 'receipt_page'));
 			add_action('woocommerce_api_'.strtolower(get_class( $this )), array( $this, 'check_ipn_response' ) );
 			add_action('admin_notices', array(&$this, 'cielodireto_check_missing_fields_message'));
+			add_action('valid-moip-standard-ipn-request', array(&$this, 'successful_request'));
 
 
 			if ( !$this->is_valid_for_use() ) $this->enabled = false;
@@ -284,7 +286,8 @@ function f2m_gateway_moip_transparente(){
 			$moip->setReceiver($this->user);
 			
 			//$moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
-			$moip->setNotificationURL(htmlspecialchars($this->get_return_url($order)));
+			$moip->setNotificationURL(htmlspecialchars($this->notify_url));
+			$moip->setReturnURL(htmlspecialchars($this->get_return_url($order)));
 
 			//set order information
 			$moip->setUniqueID($order->id ."-".microtime());
@@ -559,7 +562,7 @@ function f2m_gateway_moip_transparente(){
 			if ($this->debug=='yes') $this->log->add($this->id, 'Pedido = '.$posted['id_transacao'].' / Status = '.$posted['status_pagamento']);
 
 			if ( !empty($posted['id_transacao']) && !empty($posted['cod_moip']) ) {
-				$order = new woocommerce_order( (int) $posted['id_transacao'] );
+				$order = new WC_Order( (int) $posted['id_transacao'] );
 
 				// Check order not already completed
 				if ($order->status == 'completed' && (int)$posted['status_pagamento'] == 4) {
