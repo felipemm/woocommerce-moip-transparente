@@ -577,60 +577,61 @@ function f2m_gateway_moip_transparente(){
 						$order->add_order_note( __('Pagamento já foi realizado porém ainda não foi creditado na Carteira MoIP recebedora (devido ao floating da forma de pagamento).', 'woothemes') );
 						$order->payment_complete();
 						// Store MoIP Details
-						update_post_meta( (int) $posted['id_transacao'], 'E-Mail MoIP', $posted['email_consumidor']);
-						update_post_meta( (int) $posted['id_transacao'], 'Código Transação', $posted['cod_moip']);
-						update_post_meta( (int) $posted['id_transacao'], 'Método Pagamento', $posted['tipo_pagamento']);
-						update_post_meta( (int) $posted['id_transacao'], 'Data Transação', date("F j, Y, g:i a"));
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento já foi realizado porém ainda não foi creditado na Carteira MoIP recebedora (devido ao floating da forma de pagamento).');
+						update_post_meta( $order->id, '_f2m_moiptransparente_email', $posted['email_consumidor']);
+						update_post_meta( $order->id, '_f2m_moiptransparente_cod_moip', $posted['cod_moip']);
+						update_post_meta( $order->id, '_f2m_moiptransparente_tipo_pagto', $posted['tipo_pagamento']);
+						update_post_meta( $order->id, '_f2m_moiptransparente_parcelas', $posted['parcelas']);
+						update_post_meta( $order->id, '_f2m_moiptransparente_data', date("F j, Y, g:i a"));
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento já foi realizado porém ainda não foi creditado na Carteira MoIP recebedora (devido ao floating da forma de pagamento).');
 						break;
 
 						
 					case 2: //iniciado
 						$order->update_status('processing','Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
 						//$order->add_order_note( __('Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).', 'woothemes') );
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
 						break;
 
 						
 					case 3: //boleto impresso
 						$order->add_order_note( __('Boleto foi impresso e ainda não foi pago.', 'woothemes') );
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Boleto foi impresso e ainda não foi pago.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Boleto foi impresso e ainda não foi pago.');
 						break;
 
 					
 					case 4: //'concluido':
 						$order->add_order_note( __('Pagamento já foi realizado e dinheiro já foi creditado na Carteira MoIP recebedora.', 'woothemes') );
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento pelo MoIP compensado e transação finalizada.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento pelo MoIP compensado e transação finalizada.');
 						break;
 
 						
 					case 5: //cancelado
 						$order->update_status('cancelled','Pagamento foi cancelado pelo pagador, instituição de pagamento, MoIP ou recebedor antes de ser concluído.');
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento foi cancelado pelo pagador, instituição de pagamento, MoIP ou recebedor antes de ser concluído.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento foi cancelado pelo pagador, instituição de pagamento, MoIP ou recebedor antes de ser concluído.');
 						break;
 
 						
 					case 6: //'em análise'
 						$order->update_status('on-hold','Pagamento foi realizado com cartão de crédito e autorizado, porém está em análise pela Equipe MoIP. Não existe garantia de que será concluído.');
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento foi realizado com cartão de crédito e autorizado, porém está em análise pela Equipe MoIP. Não existe garantia de que será concluído.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento foi realizado com cartão de crédito e autorizado, porém está em análise pela Equipe MoIP. Não existe garantia de que será concluído.');
 						break;
 
 						
 					case 7: //estornado
 						$order->update_status('failed','Pagamento foi estornado pelo pagador, recebedor, instituição de pagamento ou MoIP');
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento foi estornado pelo pagador, recebedor, instituição de pagamento ou MoIP.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento foi estornado pelo pagador, recebedor, instituição de pagamento ou MoIP.');
 						break;
 
 						
 					case 8: //em revisao
 						$order->add_order_note( __('Pagamento está em revisão pela equipe de Disputa ou por Chargeback (Deprecated).', 'woothemes') );
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento está em revisão pela equipe de Disputa ou por Chargeback (Deprecated).');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento está em revisão pela equipe de Disputa ou por Chargeback (Deprecated).');
 						break;
 						
 						
 					case 9: //reembolsado
 						$order->update_status('cancelled','Pagamento foi reembolsado diretamente para a carteira MoIP do pagador pelo recebedor do pagamento ou pelo MoIP.');
-						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento foi reembolsado diretamente para a carteira MoIP do pagador pelo recebedor do pagamento ou pelo MoIP.');
+						if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$order->id.': Pagamento foi reembolsado diretamente para a carteira MoIP do pagador pelo recebedor do pagamento ou pelo MoIP.');
 						break;
 
 						
