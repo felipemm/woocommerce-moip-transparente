@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce Moip Checkout Transparente
 Plugin URI: http://felipematos.com/loja
 Description: Adiciona o gateway de pagamento do Moip no WooCommerce (com checkout transparente)
-Version: 1.0
+Version: 1.0.1
 Author: Felipe Matos <chucky_ath@yahoo.com.br>
 Author URI: http://felipematos.com
 Requires at least: 3.4
@@ -46,11 +46,14 @@ function gateway_moip_transparente(){
       // Define user set variables
       $this->title           = $this->settings['title'];
       $this->email           = $this->settings['email'];
+      $this->user            = $this->settings['user'];
       $this->token           = $this->settings['token'];
       $this->key             = $this->settings['key'];
       $this->token_validator = $this->settings['token_validator'];
       $this->store_nickname  = $this->settings['store_nickname'];
       $this->debug           = $this->settings['debug'];
+      $this->allow_parcel    = $this->settings['allow_parcel'];
+      $this->parcel_interest = $this->settings['parcel_interest'];
       $this->enable_credito  = $this->settings['enable_credito'];
       $this->enable_debito   = $this->settings['enable_debito'];
       $this->enable_boleto   = $this->settings['enable_boleto'];
@@ -108,6 +111,11 @@ function gateway_moip_transparente(){
           'type' => 'text',
           'description' => __( 'E-mail da sua conta do MoIP onde será recebido os pagamentos', 'woothemes' )
         ),
+        'user' => array(
+          'title' => __( 'Usuário', 'woothemes' ),
+          'type' => 'text',
+          'description' => __( 'Usuário da sua conta do MoIP onde será recebido os pagamentos', 'woothemes' )
+        ),
         'token' => array(
           'title' => __( 'Token', 'woothemes' ),
           'type' => 'text',
@@ -143,6 +151,16 @@ function gateway_moip_transparente(){
           'title' => __( 'Habilita boleto bancário?', 'woothemes' ),
           'type' => 'checkbox',
           'default' => 'yes'
+        ),
+        'allow_parcel' => array(
+          'title' => __( 'Habilita parcelamento?', 'woothemes' ),
+          'type' => 'checkbox',
+          'default' => 'yes'
+        ),
+        'parcel_interest' => array(
+          'title' => __( 'Valor do juros de parcelamento (ex.: 1.99 -> 1,99% a.m.)', 'woothemes' ),
+          'type' => 'text',
+          'default' => '0'
         ),
         /*'boleto_logo' => array(
           'title' => __( 'Logo boleto', 'woothemes' ),
@@ -223,12 +241,12 @@ function gateway_moip_transparente(){
       $moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
 
       //set order information
-      $moip->setUniqueID($order->id);
+      $moip->setUniqueID($order->id ."-".microtime());
       $moip->setValue(number_format($order->get_total(),2,".",""));
-      $moip->setReason('Compra feita: '. $this->store_nickname);
+      $moip->setReason(utf8_decode('Compra feita: '. $this->store_nickname));
       //put product description in the payment
       foreach ($order->get_items() as $item){
-        $moip->addMessage($item['name'] . ' - ' . $item['qty'] . ' Un.');
+        $moip->addMessage(utf8_decode($item['name'] . ' - ' . $item['qty'] . ' Un.'));
       }
 
       //set payment methods that will be available for the customer
@@ -240,30 +258,27 @@ function gateway_moip_transparente(){
       //set boleto bancario information
       //$moip->setBilletConf(strtotime(date("Y-m-d", strtotime($date)) . " +".$this->boleto_days." day"), true, array($this->boleto_line1, $this->boleto_line2, $this->boleto_line3), $this->boleto_logo);
 
-      //set customer information
-      $endereco = explode(',',$order->billing_address_1);
-      $endereco[1] = str_replace('º','',str_replace('N','',strtoupper(str_replace('-','',$endereco[1]))));
-      $complemento = explode(',',$order->billing_address_2);
-      
+	  //$cm_fields = get_post_meta($order->id, '_billing_number', true);
+	  
       $moip->setPayer(
         array(
-          'name' => $order->billing_first_name . " " . $order->billing_last_name,
+          'name' => utf8_decode($order->billing_first_name . " " . $order->billing_last_name),
           'email' => $order->billing_email,
           'payerId' => $order->billing_email,
           'billingAddress' => array(
-            'address' => $endereco[0],
-            'number' => trim($endereco[1]),
-            'complement' => $complemento[0],
-            'neighborhood' => utf8_decode (trim($complemento[1])),
-            'city' => $order->billing_city,
-            'state' => $order->billing_state,
+            'address' => utf8_decode($order->billing_address_1),
+            'number' => utf8_decode(get_post_meta($order->id, '_billing_number', true)),
+            'complement' => utf8_decode($order->billing_address_2),
+            'neighborhood' => utf8_decode(get_post_meta($order->id, '_billing_district', true)),
+            'city' => utf8_decode($order->billing_city),
+            'state' => utf8_decode($order->billing_state),
             'country' => $order->billing_country,
             'zipCode' => $order->billing_postcode,
             'phone' => $order->billing_phone
           )
         )
       );
-
+		//if ($this->debug=='yes') $this->log->add($this->id, 'numero: '. $cm_fields);
       //valida as informações para ser enviada para o xml
       $moip->validate('Identification');
       //armazena o xml no log para validação
@@ -278,11 +293,50 @@ function gateway_moip_transparente(){
       if($resposta->response){
         if ($this->debug=='yes') $this->log->add($this->id, 'XML enviado com sucesso. TOKEN: '. $resposta->token);
         
+		//parcelamento
+		if($this->allow_parcel=='yes'){		
+			$juros = number_format($this->parcel_interest, 2, ".", "");
+			$parcelas = $moip->queryParcel($this->user, '12', $juros, (number_format($order->get_total(),2,".","")));
+			if(count($parcelas['installment']) > 0){
+				$divParcela = "<select id='numParcelas' onchange='changePaymentType(\"CartaoCredito\");'>";
+				foreach($parcelas['installment'] as $key => $value){
+					if ($key == '1') {
+						$divParcela .= "<option selected='selected' value='".$key."'>".$key ." x R$ ".number_format($value['value'],2,",","")." (R$ ".number_format($value['total'],2,",","").")</option>";
+					} else {
+						$divParcela .= "<option value='".$key."'>".$key ." x R$ ".number_format($value['value'],2,",","")." (R$ ".number_format($value['total'],2,",","").")</option>";
+					}
+					
+				}
+				$divParcela .= "</select>";
+			} else {
+				$divParcela = "<select id='numParcelas' onchange='changePaymentType(\"CartaoCredito\");'>";
+				$divParcela .= "<option selected='selected' value='1'>1 x R$ ".(number_format($order->get_total(),2,".",""))." (R$ ".(number_format($order->get_total(),2,".","")).")</option>";
+				$divParcela .= "</select>";
+			}
+		} else {
+			$divParcela = "<select id='numParcelas' onchange='changePaymentType(\"CartaoCredito\");'>";
+			$divParcela .= "<option selected='selected' value='1'>1 x R$ ".(number_format($order->get_total(),2,".",""))." (R$ ".(number_format($order->get_total(),2,".","")).")</option>";
+			$divParcela .= "</select>";
+		}
 
         //add the javascript and html code necessary to do the checkout on the client side
         $payment_form = "
-          <script type='text/javascript'>
+          <script type='text/javascript'><!--
 
+			function mascara(o,f){  
+				v_obj=o  
+				v_fun=f  
+				setTimeout('execmascara()',1)  
+			}  
+			function execmascara(){  
+				v_obj.value=v_fun(v_obj.value)  
+			}  
+			function mtel(v){  
+				v=v.replace(/\D/g,'');             //Remove tudo o que não é dígito  
+				v=v.replace(/^(\d{2})(\d)/g,'($1)$2'); //Coloca parênteses em volta dos dois primeiros dígitos  
+				v=v.replace(/(\d)(\d{4})$/,'$1-$2');    //Coloca hífen entre o quarto e o quinto dígitos  
+				return v;  
+			}  		  
             //valida numero inteiro com mascara
             function mascaraInteiro(el, event){
               if (event.keyCode < 48 || event.keyCode > 57){
@@ -340,7 +394,7 @@ function gateway_moip_transparente(){
                   mascara = '0000000000000000';
                   break;
                 case 'Hipercard':
-                  mascara = '000000000000000000';
+                  mascara = '0000000000000000000';
                   break;
                 case 'Visa':
                   mascara = '0000000000000000';
@@ -356,7 +410,14 @@ function gateway_moip_transparente(){
               }
               return formataCampo(cpf, '000.000.000-00', event);
             }
-
+			function MascaraTelefone(tel,event){
+              if(mascaraInteiro(tel,event)==false){
+                event.returnValue = false;
+              }
+			  if(tel.trim().length > 13) 
+				return formataCampo(tel, '(00)00000-0000', event); //9 digitos
+              return formataCampo(tel, '(00)0000-0000', event);
+            }
             //valida o CPF digitado
             function ValidarCPF(Objcpf){
               var cpf = Objcpf.value;
@@ -376,7 +437,7 @@ function gateway_moip_transparente(){
 
               var digitoGerado=(soma1*10)+soma2;
               if(digitoGerado!=digitoDigitado){
-                alert('CPF Invalido!');
+                //alert('CPF Invalido!');
                 Objcpf.select();
               }
             }
@@ -385,7 +446,7 @@ function gateway_moip_transparente(){
             function ValidaVencimento(data){
               exp = /\d{2}\/\d{4}/
               if(!exp.test(data.value)){
-                alert('Data Invalida!');
+                //alert('Data Invalida!');
                 data.focus();
                 data.select();
               }
@@ -403,7 +464,7 @@ function gateway_moip_transparente(){
             function ValidaData(data){
               exp = /\d{2}\/\d{2}\/\d{4}/
               if(!exp.test(data.value)){
-                alert('Data Invalida!');
+                //alert('Data Invalida!');
                 data.focus();
                 data.select();
               }
@@ -449,7 +510,7 @@ function gateway_moip_transparente(){
                   document.getElementById('codigoSeguranca').maxLength = 3;
                   break;
                 case 'Hipercard':
-                  document.getElementById('numeroCartao').maxLength = 16;
+                  document.getElementById('numeroCartao').maxLength = 19;
                   document.getElementById('codigoSeguranca').maxLength = 3;
                   break;
                 case 'Visa':
@@ -480,7 +541,7 @@ function gateway_moip_transparente(){
             }
 
             function cancelPayment(){
-              window.location = \"".esc_url( $order->get_cancel_order_url() )."\";
+              window.location = \"".$order->get_cancel_order_url()."\";
             }
 
             //calback function when the request was made sucessfully
@@ -516,11 +577,17 @@ function gateway_moip_transparente(){
 
                 //alert(tipoPagamento);
                 if(tipoPagamento == 'CartaoCredito'){
-                  document.getElementById('paymentResult').innerHTML += 'A sua transação está '+data.Status+' e o código Moip é ' + data.CodigoMoIP;
+				  var status = '';
+				  switch(data.Status){
+					case 'EmAnalise'     : status = 'Em Análise'; break;
+					case 'BoletoImpresso': status = 'Boleto Impresso'; break;
+					default              : status = data.Status; break;
+				  }
+                  document.getElementById('paymentResult').innerHTML += ' A sua transação está \''+status+'\' e o código Moip é ' + data.CodigoMoIP;
 
-                  setTimeout(function(){
-                    window.location = '".$this->get_return_url($order)."';
-                  },7000);
+                  //setTimeout(function(){
+                  //  window.location = '".$this->get_return_url($order)."';
+                  //},7000);
 
                 } else {
                   var win = window.open(data.url);
@@ -575,7 +642,7 @@ function gateway_moip_transparente(){
 
                document.getElementById('paymentButtons').style.display = 'block';
               divResultado.innerHTML = '<img src=\"".esc_url( $woocommerce->plugin_url() )."/assets/images/error.gif\" alt=\"Completo!\" style=\"float:left; margin-right: 10px;\"/> Houve um erro ao processar o seu pagamento!';
-              divResultado.innerHTML += '<br><br>O MoIP retornou a seguinte mensagem: ".utf8_encode(' + JSON.stringify(data)')."' ;
+              divResultado.innerHTML += '<br><br>O MoIP retornou a seguinte mensagem: ' + JSON.stringify(data);
             };
 
 
@@ -598,12 +665,13 @@ function gateway_moip_transparente(){
                   var nomePortador    = document.getElementById('nomePortador').value;
                   var dataNascimento  = document.getElementById('dataNascimento').value;
                   var telefone        = document.getElementById('Telefone').value;
-                  var cpf             = document.getElementById('cpf').value
+                  var cpf             = document.getElementById('cpf').value;
+				  var parcelas        = document.getElementById('numParcelas').value;
 
                   settings = {
                     'Forma': 'CartaoCredito',
                     'Instituicao': instituicao,
-                    'Parcelas': '1',
+                    'Parcelas': parcelas,
                     'Recebimento': 'AVista',
                     'CartaoCredito': {
                       'Numero': numeroCartao,
@@ -639,7 +707,7 @@ function gateway_moip_transparente(){
               //alert(JSON.stringify(settings));
           
             }
-          </script>
+          --></script>
 
           <div id='MoipWidget'
             data-token='".$resposta->token."'
@@ -651,17 +719,16 @@ function gateway_moip_transparente(){
 
             <div id='paymentResult'></div>
 
-            <div id='paymentWaiting'>
-            </div>
+            <div id='paymentWaiting'></div>
 
             <div id='paymentOptions'>
         ";
         
-
+		
         if($this->enable_credito == 'yes'){
           $payment_form .= "
                 <input type='radio' name='paymentType' id='paymentType' value='CartaoCredito'  onclick='changePaymentType(this.value)' /> Cartão de Crédito (Visa, Mastercard, Diners, Hipercard, American Express)<br>
-                <div id='paymentFormCredito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+                <div id='paymentFormCredito' style='display: none; margin: 5 5 5 5;'>
                   <table>
                     <tr>
                       <td>Nome Portador</td>
@@ -686,19 +753,23 @@ function gateway_moip_transparente(){
                     </tr>
                     <tr>
                       <td>Data Validade</td>
-                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);'></td>
+                      <td><input type='text' id='dataValidade' onKeyPress='MascaraVencimento(this, event);' maxlength='7' onBlur= 'ValidaVencimento(this);' /> MM/AAAA</td>
+                    </tr>
+					<tr>
+						<td>Opções de Parcelamento</td>
+						<td>$divParcela</td>
                     </tr>
                     <tr>
                       <td>Data de Nascimento </td>
-                      <td><input type='text' id='dataNascimento' onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);'></td>
+                      <td><input type='text' id='dataNascimento' value=".get_post_meta($order->id, '_billing_nascimento', true)." onKeyPress='MascaraData(this, event);' maxlength='10' onBlur= 'ValidaData(this);' /> DD/MM/AAAA</td>
                     </tr>
                     <tr>
                       <td>Telefone</td>
-                      <td><input type='text' id='Telefone' value='".$order->billing_phone."' /> (99)9999-9999</td>
+                      <td><input type='text' id='Telefone' value='".$order->billing_phone."' maxlength='14'  onKeyDown='mascara(this, mtel);'/> (99)9999-9999</td>
                     </tr>
                     <tr>
                       <td>CPF</td>
-                      <td><input type='text' id='cpf' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14'></td>
+                      <td><input type='text' id='cpf' value='".get_post_meta($order->id, '_billing_cpf', true)."' onBlur='ValidarCPF(this);' onKeyPress='MascaraCPF(this, event);' maxlength='14' /></td>
                     </tr>
 
                   </table>
@@ -711,7 +782,7 @@ function gateway_moip_transparente(){
         if($this->enable_debito == 'yes'){
           $payment_form .= "
                 <input type='radio' name='paymentType' id='paymentType' value='DebitoBancario' onclick='changePaymentType(this.value)' /> Débito automático em conta (BB, Bradesco, Banrisul, Itaú)<br>
-                <div id='paymentFormDebito' style='display: none;' border: .1em dotted #900; margin: 5 5 5 5;'>
+                <div id='paymentFormDebito' style='display: none; margin: 5 5 5 5;'>
                   <table>
                     <tr>
                       <td>Selecione o banco: </td>
@@ -748,13 +819,15 @@ function gateway_moip_transparente(){
             </div>
 
           </div>
-          <script type='text/javascript' src='".($this->testmode == 'yes' ? 'https://desenvolvedor.moip.com.br/sandbox' : 'https://www.moip.com.br')."/transparente/MoipWidget-v2.js' charset='utf-8'/>
+		  <div style='clear:both'></div>
+          <script type='text/javascript' src='".($this->testmode == 'yes' ? 'https://desenvolvedor.moip.com.br/sandbox' : 'https://www.moip.com.br')."/transparente/MoipWidget-v2.js' charset='utf-8'></script>
         ";
       } else {
         //houve um erro na transação, lançar no log
         if ($this->debug=='yes') $this->log->add($this->id, 'Houve um erro ao processar o XML: '. $resposta->error);
         $payment_form = utf8_encode($resposta->error);
-        $payment_form .= "<button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
+        $payment_form .= $order->billing_number;
+		$payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
         
       if ($this->debug=='yes') $this->log->add($this->id, "Pedido gerado com sucesso. Abaixo código HTML do formulário:");
@@ -861,6 +934,9 @@ function gateway_moip_transparente(){
     // Successful Payment!
     //======================================================================
     function successful_request( $posted ) {
+		$transacao = explode('-', $posted['id_transacao']);
+		$posted['id_transacao'] = $transacao[0];
+	
       if ($this->debug=='yes') $this->log->add($this->id, 'Pedido = '.$posted['id_transacao'].' / Status = '.$posted['status_pagamento']);
 
       if ( !empty($posted['id_transacao']) && !empty($posted['cod_moip']) ) {
