@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce Moip Checkout Transparente
 Plugin URI: http://felipematos.com/loja
 Description: Adiciona o gateway de pagamento do Moip no WooCommerce (com checkout transparente)
-Version: 1.0.1
+Version: 1.1
 Author: Felipe Matos <chucky_ath@yahoo.com.br>
 Author URI: http://felipematos.com
 Requires at least: 3.4
@@ -237,8 +237,10 @@ function gateway_moip_transparente(){
       $moip->setEnvironment($this->testmode == 'yes' ? 'test' : 'prod');
       //set credentials and receiver information
       $moip->setCredential(array('key' => $this->key,'token' => $this->token));
-      $moip->setReceiver($this->email);
-      $moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
+      //$moip->setReceiver($this->email);
+      $moip->setReceiver($this->user);
+      //$moip->setNotificationURL('<![CDATA['.htmlspecialchars($this->get_return_url($order)).']]>');
+      $moip->setNotificationURL(htmlspecialchars($this->get_return_url($order)));
 
       //set order information
       $moip->setUniqueID($order->id ."-".microtime());
@@ -827,6 +829,7 @@ function gateway_moip_transparente(){
         if ($this->debug=='yes') $this->log->add($this->id, 'Houve um erro ao processar o XML: '. $resposta->error);
         $payment_form = utf8_encode($resposta->error);
         $payment_form .= $order->billing_number;
+        $payment_form .= 'felipe';
 		$payment_form .= "<br><button id='cancelButton'  class='button' onclick='window.location = \"".esc_url( $order->get_cancel_order_url() )."\";'  style='display: inline;'>Cancelar Pedido</button>";
       }
         
@@ -866,6 +869,7 @@ function gateway_moip_transparente(){
       $moip_payment_token = get_post_meta($order->id, 'moip_payment_token', true);
       echo $this->generate_moip_form( $order ) . $moip_payment_token;
       update_post_meta($order->id, 'moip_payment_token', $moip_payment_token);
+	  $order->update_status('processing','Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
     } // End of receipt_page()
 
 
@@ -964,7 +968,8 @@ function gateway_moip_transparente(){
 
           case 2: //iniciado
 
-            $order->add_order_note( __('Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).', 'woothemes') );
+            $order->update_status('processing','Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
+            //$order->add_order_note( __('Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).', 'woothemes') );
             if ($this->debug=='yes') $this->log->add($this->id, 'Pedido '.$posted['id_transacao'].': Pagamento está sendo realizado ou janela do navegador foi fechada (pagamento abandonado).');
             break;
 
